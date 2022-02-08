@@ -33,10 +33,20 @@ namespace PSQT {
   void init();
 }
 
-int main(int argc, char* argv[]) {
+static std::vector<std::string> searchMsg;
+static std::mutex searchMsgVecMutex;
 
-  std::cout << engine_info() << std::endl;
+void clearAllMessages() {
+  if (!searchMsg.empty()) {
+    std::lock_guard<std::mutex> lock(searchMsgVecMutex);
+    if (!searchMsg.empty()) {
+      searchMsg.clear();
+    }
+  }
+}
 
+void stockfish_initialize() {
+  clearAllMessages();
   UCI::init(Options);
   PSQT::init();
   Bitboards::init();
@@ -45,9 +55,26 @@ int main(int argc, char* argv[]) {
   Endgames::init();
   Threads.set(Options["Threads"]);
   Search::clear(); // After threads are up
+}
 
-  UCI::loop(argc, argv);
+void stockfish_cmd(const char *cmd) {
+    UCI::cmd(cmd);
+}
 
-  Threads.set(0);
-  return 0;
+void engine_message(const std::string& str) {
+  std::lock_guard<std::mutex> lock(searchMsgVecMutex);
+  searchMsg.push_back(str);
+}
+
+const char* getSearchMessage() {
+  if (!searchMsg.empty()) {
+    std::lock_guard<std::mutex> lock(searchMsgVecMutex);
+    if (!searchMsg.empty()) {
+      static std::string tmpString;
+      tmpString = searchMsg.front();
+      searchMsg.erase(searchMsg.begin());
+      return tmpString.c_str();
+    }
+  }
+  return nullptr;
 }
